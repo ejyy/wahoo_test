@@ -53,6 +53,16 @@
       background-color: #e8f5e9;
       color: #2e7d32;
     }
+    #debug {
+      margin-top: 20px;
+      background-color: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -70,6 +80,8 @@
     <button id="refresh-button">Refresh Activities</button>
     <div id="activities-container"></div>
   </div>
+  
+  <div id="debug"></div>
 
   <script>
     // PKCE and OAuth Configuration
@@ -77,8 +89,11 @@
     const redirectUri = window.location.origin + window.location.pathname;
     const authEndpoint = 'https://api.wahooligan.com/oauth/authorize';
     const tokenEndpoint = 'https://api.wahooligan.com/oauth/token';
-    const apiEndpoint = 'https://api.wahooligan.com/v1/workouts';
-    const scope = 'user_read workouts_read';
+    const apiEndpoint = 'https://api.wahooligan.com/v1/workouts'; // Fixed: changed from workout to workouts
+    const scope = 'user_read workouts_read'; // Using the scope you confirmed works
+    
+    // Debug mode - set to true to see detailed logs
+    const debugMode = true;
     
     // DOM Elements
     const loginButton = document.getElementById('login-button');
@@ -86,6 +101,28 @@
     const activitiesSection = document.getElementById('activities-section');
     const activitiesContainer = document.getElementById('activities-container');
     const statusElement = document.getElementById('status');
+    const debugElement = document.getElementById('debug');
+    
+    // Debug logging
+    function debug(message, data = null) {
+      if (!debugMode) return;
+      
+      let logMessage = `[${new Date().toISOString()}] ${message}`;
+      if (data) {
+        if (typeof data === 'object') {
+          logMessage += `\n${JSON.stringify(data, null, 2)}`;
+        } else {
+          logMessage += `\n${data}`;
+        }
+      }
+      
+      console.log(logMessage);
+      
+      if (debugMode) {
+        debugElement.style.display = 'block';
+        debugElement.textContent += logMessage + '\n\n';
+      }
+    }
     
     // Helper Functions
     function base64URLEncode(str) {
@@ -112,6 +149,7 @@
       statusElement.textContent = message;
       statusElement.className = isError ? 'error' : 'success';
       statusElement.classList.remove('hidden');
+      debug(message, isError ? 'ERROR' : 'INFO');
     }
     
     function hideStatus() {
@@ -131,9 +169,10 @@
     }
     
     function displayActivities(activities) {
+      debug('Displaying activities', activities);
       activitiesContainer.innerHTML = '';
       
-      if (activities.length === 0) {
+      if (!activities || activities.length === 0) {
         activitiesContainer.innerHTML = '<p>No activities found.</p>';
         return;
       }
@@ -165,6 +204,7 @@
     // OAuth and API Functions
     async function initiateAuth() {
       try {
+        debug('Initiating authentication');
         // Generate and store PKCE code verifier
         const codeVerifier = await generateCodeVerifier();
         localStorage.setItem('code_verifier', codeVerifier);
@@ -181,16 +221,19 @@
         authUrl.searchParams.append('code_challenge', codeChallenge);
         authUrl.searchParams.append('code_challenge_method', 'S256');
         
+        debug('Auth URL', authUrl.toString());
+        
         // Redirect to Wahoo auth page
         window.location.href = authUrl.toString();
       } catch (error) {
         showStatus('Authentication error: ' + error.message, true);
-        console.error('Auth error:', error);
+        debug('Auth error', error);
       }
     }
     
     async function exchangeCodeForToken(code) {
       try {
+        debug('Exchanging code for token', { code });
         // Get stored code verifier
         const codeVerifier = localStorage.getItem('code_verifier');
         if (!codeVerifier) {
@@ -205,6 +248,8 @@
         params.append('redirect_uri', redirectUri);
         params.append('code_verifier', codeVerifier);
         
+        debug('Token request params', Object.fromEntries(params));
+        
         // Exchange code for token
         const response = await fetch(tokenEndpoint, {
           method: 'POST',
@@ -214,11 +259,14 @@
           body: params
         });
         
+        const responseText = await response.text();
+        debug('Token response', { status: response.status, text: responseText });
+        
         if (!response.ok) {
-          throw new Error(`Token request failed: ${response.status} ${response.statusText}`);
+          throw new Error(`Token request failed: ${response.status} ${response.statusText} - ${responseText}`);
         }
         
-        const data = await response.json();
+        const data = JSON.parse(responseText);
         
         // Store token data
         localStorage.setItem('access_token', data.access_token);
@@ -228,10 +276,12 @@
         // Remove code verifier
         localStorage.removeItem('code_verifier');
         
+        debug('Token obtained successfully', { expiresIn: data.expires_in });
+        
         return data.access_token;
       } catch (error) {
         showStatus('Token exchange error: ' + error.message, true);
-        console.error('Token error:', error);
+        debug('Token error', error);
         return null;
       }
     }
@@ -242,16 +292,19 @@
       
       // If we have a valid token, return it
       if (accessToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
+        debug('Using existing access token', { expiresIn: (parseInt(tokenExpiry) - Date.now()) / 1000 });
         return accessToken;
       }
       
       // Otherwise, try to refresh
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
+        debug('No refresh token available');
         return null;
       }
       
       try {
+        debug('Refreshing access token');
         const params = new URLSearchParams();
         params.append('client_id', clientId);
         params.append('grant_type', 'refresh_token');
@@ -265,19 +318,24 @@
           body: params
         });
         
+        const responseText = await response.text();
+        debug('Refresh response', { status: response.status, text: responseText });
+        
         if (!response.ok) {
-          throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
+          throw new Error(`Token refresh failed: ${response.status} ${response.statusText} - ${responseText}`);
         }
         
-        const data = await response.json();
+        const data = JSON.parse(responseText);
         
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('refresh_token', data.refresh_token);
         localStorage.setItem('token_expiry', Date.now() + (data.expires_in * 1000));
         
+        debug('Token refreshed successfully', { expiresIn: data.expires_in });
+        
         return data.access_token;
       } catch (error) {
-        console.error('Token refresh error:', error);
+        debug('Token refresh error', error);
         return null;
       }
     }
@@ -294,6 +352,7 @@
         }
         
         showStatus('Fetching your activities...');
+        debug('Fetching activities', { endpoint: apiEndpoint });
         
         const response = await fetch(`${apiEndpoint}?limit=5`, {
           headers: {
@@ -301,18 +360,38 @@
           }
         });
         
+        const responseText = await response.text();
+        debug('Activities response', { 
+          status: response.status, 
+          statusText: response.statusText,
+          headers: Object.fromEntries([...response.headers.entries()]),
+          text: responseText 
+        });
+        
         if (!response.ok) {
-          throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+          throw new Error(`API request failed: ${response.status} ${response.statusText} - ${responseText}`);
         }
         
-        const data = await response.json();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          throw new Error(`Failed to parse API response: ${e.message}`);
+        }
         
-        displayActivities(data.items || []);
+        // Check different possible response formats
+        const activities = data.items || data.workouts || data;
+        if (Array.isArray(activities)) {
+          displayActivities(activities);
+        } else {
+          throw new Error(`Unexpected API response format: ${JSON.stringify(data)}`);
+        }
+        
         hideStatus();
         activitiesSection.classList.remove('hidden');
       } catch (error) {
         showStatus('Failed to fetch activities: ' + error.message, true);
-        console.error('Fetch error:', error);
+        debug('Fetch error', error);
       }
     }
     
@@ -325,6 +404,8 @@
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const error = urlParams.get('error');
+      
+      debug('Handling redirect', { code: code ? '[PRESENT]' : '[ABSENT]', error });
       
       // Clean the URL
       const cleanUrl = window.location.pathname;
