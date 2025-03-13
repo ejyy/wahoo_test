@@ -354,7 +354,7 @@
         showStatus('Fetching your activities...');
         debug('Fetching activities', { endpoint: apiEndpoint });
         
-        const response = await fetch(`${apiEndpoint}?limit=5`, {
+        const response = await fetch(`${apiEndpoint}?per_page=5`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
