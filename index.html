@@ -184,17 +184,17 @@
         let activityType = activity.name || 'Unknown';
         activityType = activityType.charAt(0).toUpperCase() + activityType.slice(1);
         
-        const startDate = activity.starts ? getFormattedDate(activity.start_time) : 'Unknown date';
-        const duration = activity.duration ? formatDuration(activity.duration) : 'Unknown duration';
-        const distance = activity.distance ? (activity.distance / 1000).toFixed(2) + ' km' : 'Unknown distance';
+        const startDate = activity.starts ? getFormattedDate(activity.starts) : 'Unknown date';
+        const duration = activity.minutes ? formatDuration(activity.minutes) : 'Unknown duration';
+        const distance = activity.workout_summary.distance_accum ? (activity.workout_summary.distance_accum / 1000).toFixed(2) + ' km' : 'Unknown distance';
         
         activityElement.innerHTML = `
           <h3>${activityType} - ${startDate}</h3>
           <p><strong>Duration:</strong> ${duration}</p>
           <p><strong>Distance:</strong> ${distance}</p>
-          ${activity.calories ? `<p><strong>Calories:</strong> ${activity.calories} kcal</p>` : ''}
-          ${activity.avg_heart_rate ? `<p><strong>Avg Heart Rate:</strong> ${activity.avg_heart_rate} bpm</p>` : ''}
-          ${activity.avg_speed ? `<p><strong>Avg Speed:</strong> ${(activity.avg_speed * 3.6).toFixed(1)} km/h</p>` : ''}
+          ${activity.workout_summary.calories_accum ? `<p><strong>Calories:</strong> ${activity.workout_summary.calories_accum} kcal</p>` : ''}
+          ${activity.workout_summary.heart_rate_avg ? `<p><strong>Avg Heart Rate:</strong> ${activity.workout_summary.heart_rate_avg} bpm</p>` : ''}
+          ${activity.workout_summary.speed_avg ? `<p><strong>Avg Speed:</strong> ${(activity.workout_summary.speed_avg * 3.6).toFixed(1)} km/h</p>` : ''}
         `;
         
         activitiesContainer.appendChild(activityElement);
