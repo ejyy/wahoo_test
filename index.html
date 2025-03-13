@@ -181,10 +181,10 @@
         const activityElement = document.createElement('div');
         activityElement.className = 'activity';
         
-        let activityType = activity.sport_type || 'Unknown';
+        let activityType = activity.name || 'Unknown';
         activityType = activityType.charAt(0).toUpperCase() + activityType.slice(1);
         
-        const startDate = activity.start_time ? getFormattedDate(activity.start_time) : 'Unknown date';
+        const startDate = activity.starts ? getFormattedDate(activity.start_time) : 'Unknown date';
         const duration = activity.duration ? formatDuration(activity.duration) : 'Unknown duration';
         const distance = activity.distance ? (activity.distance / 1000).toFixed(2) + ' km' : 'Unknown distance';
         
