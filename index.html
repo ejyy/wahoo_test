@@ -54,16 +54,6 @@
                 background-color: #e8f5e9;
                 color: #2e7d32;
             }
-            #debug {
-                margin-top: 20px;
-                background-color: #f8f9fa;
-                padding: 10px;
-                border-radius: 4px;
-                font-family: monospace;
-                white-space: pre-wrap;
-                overflow-x: auto;
-                display: none;
-            }
             .power-data {
                 margin-top: 10px;
                 padding: 10px;
@@ -97,8 +87,6 @@
             <div id="activities-container"></div>
         </div>
 
-        <div id="debug"></div>
-
         <script type="module">
             // PKCE and OAuth Configuration
             const clientId = "aEIAUyQ6pxnvXaNPGS3-oS-KcZs2rM7c6SXb8dXkSzE";
@@ -109,9 +97,6 @@
             const apiEndpoint = "https://api.wahooligan.com/v1/workouts"; // Fixed: changed from workout to workouts
             const scope = "user_read workouts_read"; // Using the scope you confirmed works
 
-            // Debug mode - set to true to see detailed logs
-            const debugMode = true;
-
             // DOM Elements
             const loginButton = document.getElementById("login-button");
             const refreshButton = document.getElementById("refresh-button");
@@ -121,28 +106,6 @@
                 "activities-container",
             );
             const statusElement = document.getElementById("status");
-            const debugElement = document.getElementById("debug");
-
-            // Debug logging
-            function debug(message, data = null) {
-                if (!debugMode) return;
-
-                let logMessage = `[${new Date().toISOString()}] ${message}`;
-                if (data) {
-                    if (typeof data === "object") {
-                        logMessage += `\n${JSON.stringify(data, null, 2)}`;
-                    } else {
-                        logMessage += `\n${data}`;
-                    }
-                }
-
-                console.log(logMessage);
-
-                if (debugMode) {
-                    debugElement.style.display = "block";
-                    debugElement.textContent += logMessage + "\n\n";
-                }
-            }
 
             // Helper Functions
             function base64URLEncode(str) {
@@ -174,7 +137,6 @@
                 statusElement.textContent = message;
                 statusElement.className = isError ? "error" : "success";
                 statusElement.classList.remove("hidden");
-                debug(message, isError ? "ERROR" : "INFO");
             }
 
             function hideStatus() {
@@ -194,7 +156,6 @@
             }
 
             function displayActivities(activities) {
-                debug("Displaying activities", activities);
                 activitiesContainer.innerHTML = "";
 
                 if (!activities || activities.length === 0) {
@@ -238,11 +199,6 @@
 
                     let fitFileUrl = activity.workout_summary.file.url;
 
-                    debug("FIT file URL", {
-                        activityId: activity.id,
-                        fitFileUrl,
-                    });
-
                     // Process power data from FIT file
                     const powerDataElement = document.getElementById(
                         `power-data-${activity.id}`,
@@ -254,7 +210,6 @@
             // OAuth and API Functions
             async function initiateAuth() {
                 try {
-                    debug("Initiating authentication");
                     // Generate and store PKCE code verifier
                     const codeVerifier = await generateCodeVerifier();
                     localStorage.setItem("code_verifier", codeVerifier);
@@ -278,19 +233,15 @@
                         "S256",
                     );
 
-                    debug("Auth URL", authUrl.toString());
-
                     // Redirect to Wahoo auth page
                     window.location.href = authUrl.toString();
                 } catch (error) {
                     showStatus("Authentication error: " + error.message, true);
-                    debug("Auth error", error);
                 }
             }
 
             async function exchangeCodeForToken(code) {
                 try {
-                    debug("Exchanging code for token", { code });
                     // Get stored code verifier
                     const codeVerifier = localStorage.getItem("code_verifier");
                     if (!codeVerifier) {
@@ -307,8 +258,6 @@
                     params.append("redirect_uri", redirectUri);
                     params.append("code_verifier", codeVerifier);
 
-                    debug("Token request params", Object.fromEntries(params));
-
                     // Exchange code for token
                     const response = await fetch(tokenEndpoint, {
                         method: "POST",
@@ -319,10 +268,6 @@
                     });
 
                     const responseText = await response.text();
-                    debug("Token response", {
-                        status: response.status,
-                        text: responseText,
-                    });
 
                     if (!response.ok) {
                         throw new Error(
@@ -342,15 +287,9 @@
 
                     // Remove code verifier
                     localStorage.removeItem("code_verifier");
-
-                    debug("Token obtained successfully", {
-                        expiresIn: data.expires_in,
-                    });
-
                     return data.access_token;
                 } catch (error) {
                     showStatus("Token exchange error: " + error.message, true);
-                    debug("Token error", error);
                     return null;
                 }
             }
@@ -365,21 +304,16 @@
                     tokenExpiry &&
                     Date.now() < parseInt(tokenExpiry)
                 ) {
-                    debug("Using existing access token", {
-                        expiresIn: (parseInt(tokenExpiry) - Date.now()) / 1000,
-                    });
                     return accessToken;
                 }
 
                 // Otherwise, try to refresh
                 const refreshToken = localStorage.getItem("refresh_token");
                 if (!refreshToken) {
-                    debug("No refresh token available");
                     return null;
                 }
 
                 try {
-                    debug("Refreshing access token");
                     const params = new URLSearchParams();
                     params.append("client_id", clientId);
                     params.append("grant_type", "refresh_token");
@@ -394,10 +328,6 @@
                     });
 
                     const responseText = await response.text();
-                    debug("Refresh response", {
-                        status: response.status,
-                        text: responseText,
-                    });
 
                     if (!response.ok) {
                         throw new Error(
@@ -414,69 +344,14 @@
                         Date.now() + data.expires_in * 1000,
                     );
 
-                    debug("Token refreshed successfully", {
-                        expiresIn: data.expires_in,
-                    });
-
                     return data.access_token;
                 } catch (error) {
-                    debug("Token refresh error", error);
                     return null;
                 }
             }
 
             // Import fit-decoder at the top of your script section
             import fitDecoder from "https://cdn.jsdelivr.net/npm/fit-decoder/+esm";
-
-            // Add these functions for FIT file processing
-
-            // Local storage cache functions for FIT data
-            function getCachedFitData(url) {
-                try {
-                    const cachedData = localStorage.getItem(`fit_${url}`);
-                    if (cachedData) {
-                        return JSON.parse(cachedData);
-                    }
-                    return null;
-                } catch (error) {
-                    debug("Error getting cached FIT data", error);
-                    return null;
-                }
-            }
-
-            function cacheFitData(url, data) {
-                try {
-                    localStorage.setItem(`fit_${url}`, JSON.stringify(data));
-                } catch (error) {
-                    debug("Error caching FIT data", error);
-                    // If we hit storage limits, clear old cache entries
-                    if (error.name === "QuotaExceededError") {
-                        clearOldCache();
-                        try {
-                            localStorage.setItem(
-                                `fit_${url}`,
-                                JSON.stringify(data),
-                            );
-                        } catch (e) {
-                            debug("Still failed to cache after clearing", e);
-                        }
-                    }
-                }
-            }
-
-            function clearOldCache() {
-                debug("Clearing old cache entries");
-                // Find and remove oldest FIT cache entries
-                const keys = Object.keys(localStorage).filter((key) =>
-                    key.startsWith("fit_"),
-                );
-                if (keys.length > 10) {
-                    // Keep only 10 most recent entries
-                    keys.slice(0, keys.length - 10).forEach((key) =>
-                        localStorage.removeItem(key),
-                    );
-                }
-            }
 
             // Process FIT file from URL
             async function processFitFile(url, powerDataElement) {
@@ -486,29 +361,11 @@
                 }
 
                 try {
-                    // Try to get cached data first
-                    const cachedData = getCachedFitData(url);
-                    if (cachedData) {
-                        debug("Using cached FIT data", { url });
-                        displayPowerData(cachedData, powerDataElement);
-                        return;
-                    }
-
                     // If not cached, download and process
                     powerDataElement.innerHTML =
                         '<span class="loading">Loading power data...</span>';
-                    debug("Fetching FIT file", { url });
 
-                    const token = await getAccessToken();
-                    if (!token) {
-                        throw new Error("Not authenticated");
-                    }
-
-                    const response = await fetch(url, {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    });
+                    const response = await fetch(url);
 
                     if (!response.ok) {
                         throw new Error(
@@ -517,10 +374,6 @@
                     }
 
                     const arrayBuffer = await response.arrayBuffer();
-                    debug("FIT file downloaded", {
-                        size: arrayBuffer.byteLength,
-                    });
-
                     const jsonRaw = fitDecoder.fit2json(arrayBuffer);
                     const json = await fitDecoder.parseRecords(jsonRaw);
                     const powerArray = fitDecoder.getRecordFieldValue(
@@ -529,17 +382,9 @@
                         "power",
                     );
 
-                    debug("FIT file processed", {
-                        powerSamples: powerArray ? powerArray.length : 0,
-                    });
-
-                    // Cache the power data
-                    cacheFitData(url, powerArray);
-
                     // Display power data
                     displayPowerData(powerArray, powerDataElement);
                 } catch (error) {
-                    debug("Error processing FIT file", error);
                     powerDataElement.innerHTML = `<span class="error">Error processing power data: ${error.message}</span>`;
                 }
             }
@@ -571,7 +416,6 @@
                     }
 
                     showStatus("Fetching your activities...");
-                    debug("Fetching activities", { endpoint: apiEndpoint });
 
                     const response = await fetch(`${apiEndpoint}?per_page=5`, {
                         headers: {
@@ -580,14 +424,6 @@
                     });
 
                     const responseText = await response.text();
-                    debug("Activities response", {
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: Object.fromEntries([
-                            ...response.headers.entries(),
-                        ]),
-                        text: responseText,
-                    });
 
                     if (!response.ok) {
                         throw new Error(
@@ -621,7 +457,6 @@
                         "Failed to fetch activities: " + error.message,
                         true,
                     );
-                    debug("Fetch error", error);
                 }
             }
 
@@ -634,11 +469,6 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 const code = urlParams.get("code");
                 const error = urlParams.get("error");
-
-                debug("Handling redirect", {
-                    code: code ? "[PRESENT]" : "[ABSENT]",
-                    error,
-                });
 
                 // Clean the URL
                 const cleanUrl = window.location.pathname;
