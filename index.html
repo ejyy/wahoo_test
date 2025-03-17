@@ -236,45 +236,7 @@
 
                     activitiesContainer.appendChild(activityElement);
 
-                    // In the displayActivities function, replace the FIT file URL extraction code with this:
-                    // Extract FIT file URL from activity
-                    let fitFileUrl = null;
-                    if (
-                        activity.workout_summary &&
-                        activity.workout_summary.file &&
-                        activity.workout_summary.file.url
-                    ) {
-                        fitFileUrl = activity.workout_summary.file.url;
-                        debug("Found FIT file URL in workout_summary", {
-                            url: fitFileUrl,
-                        });
-                    } else if (activity.fit_file_url) {
-                        fitFileUrl = activity.fit_file_url;
-                        debug("Found FIT file URL in fit_file_url", {
-                            url: fitFileUrl,
-                        });
-                    } else if (activity.fit_url) {
-                        fitFileUrl = activity.fit_url;
-                        debug("Found FIT file URL in fit_url", {
-                            url: fitFileUrl,
-                        });
-                    } else if (
-                        activity.links &&
-                        Array.isArray(activity.links)
-                    ) {
-                        const fitLink = activity.links.find(
-                            (link) =>
-                                link.rel === "fit" ||
-                                link.rel === "fit_file" ||
-                                (link.href && link.href.endsWith(".fit")),
-                        );
-                        if (fitLink && fitLink.href) {
-                            fitFileUrl = fitLink.href;
-                            debug("Found FIT file URL in links", {
-                                url: fitFileUrl,
-                            });
-                        }
-                    }
+                    fitFileUrl = activity.workout_summary.file.url;
 
                     debug("FIT file URL", {
                         activityId: activity.id,
