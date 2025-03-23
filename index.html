@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Wahoo Activity Tracker</title>
+        <title>Metrics.bike</title>
         <style>
             body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -69,7 +69,7 @@
         </style>
     </head>
     <body>
-        <h1>Wahoo Activity Tracker</h1>
+        <h1>Metrics.bike</h1>
 
         <div id="login-section">
             <p>
@@ -82,32 +82,30 @@
         <div id="status" class="hidden"></div>
 
         <div id="activities-section" class="hidden">
-            <h2>Your Recent Activities</h2>
+            <h2 id="activities-title">Your Recent Activities</h2>
             <button id="refresh-button">Refresh Activities</button>
             <div id="activities-container"></div>
         </div>
 
         <script type="module">
-            // PKCE and OAuth Configuration
-            const clientId = "aEIAUyQ6pxnvXaNPGS3-oS-KcZs2rM7c6SXb8dXkSzE";
+            //////////////////////
+            // Metrics.bike app //
+            //////////////////////
+
+            import fitDecoder from "https://cdn.jsdelivr.net/npm/fit-decoder/+esm";
+
+            /////////////////////////
+            // Authentication code //
+            /////////////////////////
+            const clientId = "Jm_cbkNKssVAPN9wa0583ZKzdyVnjbVs0Jo9FlZ25vo";
             const redirectUri =
                 window.location.origin + window.location.pathname;
             const authEndpoint = "https://api.wahooligan.com/oauth/authorize";
             const tokenEndpoint = "https://api.wahooligan.com/oauth/token";
-            const apiEndpoint = "https://api.wahooligan.com/v1/workouts"; // Fixed: changed from workout to workouts
-            const scope = "user_read workouts_read"; // Using the scope you confirmed works
+            const apiEndpoint = "https://api.wahooligan.com/v1/workouts";
+            const scope = "user_read workouts_read";
+            const numActivities = 5;
 
-            // DOM Elements
-            const loginButton = document.getElementById("login-button");
-            const refreshButton = document.getElementById("refresh-button");
-            const activitiesSection =
-                document.getElementById("activities-section");
-            const activitiesContainer = document.getElementById(
-                "activities-container",
-            );
-            const statusElement = document.getElementById("status");
-
-            // Helper Functions
             function base64URLEncode(str) {
                 return btoa(
                     String.fromCharCode.apply(null, new Uint8Array(str)),
@@ -133,81 +131,6 @@
                 return base64URLEncode(digest);
             }
 
-            function showStatus(message, isError = false) {
-                statusElement.textContent = message;
-                statusElement.className = isError ? "error" : "success";
-                statusElement.classList.remove("hidden");
-            }
-
-            function hideStatus() {
-                statusElement.classList.add("hidden");
-            }
-
-            function getFormattedDate(timestamp) {
-                return new Date(timestamp * 1000).toLocaleString();
-            }
-
-            function formatDuration(seconds) {
-                const hours = Math.floor(seconds / 3600);
-                const minutes = Math.floor((seconds % 3600) / 60);
-                const remainingSeconds = seconds % 60;
-
-                return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
-            }
-
-            function displayActivities(activities) {
-                activitiesContainer.innerHTML = "";
-
-                if (!activities || activities.length === 0) {
-                    activitiesContainer.innerHTML =
-                        "<p>No activities found.</p>";
-                    return;
-                }
-
-                activities.forEach((activity) => {
-                    const activityElement = document.createElement("div");
-                    activityElement.className = "activity";
-
-                    let activityType = activity.name || "Unknown";
-                    activityType =
-                        activityType.charAt(0).toUpperCase() +
-                        activityType.slice(1);
-
-                    const startDate = activity.starts
-                        ? getFormattedDate(activity.starts)
-                        : "Unknown date";
-                    const duration = activity.minutes
-                        ? formatDuration(activity.minutes)
-                        : "Unknown duration";
-                    const distance = activity.workout_summary.distance_accum
-                        ? (
-                              activity.workout_summary.distance_accum / 1000
-                          ).toFixed(2) + " km"
-                        : "Unknown distance";
-
-                    activityElement.innerHTML = `
-          <h3>${activityType} - ${startDate}</h3>
-          <p><strong>Duration:</strong> ${duration}</p>
-          <p><strong>Distance:</strong> ${distance}</p>
-          ${activity.workout_summary.calories_accum ? `<p><strong>Calories:</strong> ${activity.workout_summary.calories_accum} kcal</p>` : ""}
-          ${activity.workout_summary.heart_rate_avg ? `<p><strong>Avg Heart Rate:</strong> ${activity.workout_summary.heart_rate_avg} bpm</p>` : ""}
-          ${activity.workout_summary.speed_avg ? `<p><strong>Avg Speed:</strong> ${(activity.workout_summary.speed_avg * 3.6).toFixed(1)} km/h</p>` : ""}
-          <div class="power-data" id="power-data-${activity.id}">Loading power data...</div>
-        `;
-
-                    activitiesContainer.appendChild(activityElement);
-
-                    let fitFileUrl = activity.workout_summary.file.url;
-
-                    // Process power data from FIT file
-                    const powerDataElement = document.getElementById(
-                        `power-data-${activity.id}`,
-                    );
-                    processFitFile(fitFileUrl, powerDataElement);
-                });
-            }
-
-            // OAuth and API Functions
             async function initiateAuth() {
                 try {
                     // Generate and store PKCE code verifier
@@ -350,10 +273,130 @@
                 }
             }
 
-            // Import fit-decoder at the top of your script section
-            import fitDecoder from "https://cdn.jsdelivr.net/npm/fit-decoder/+esm";
+            async function handleAuthRedirect() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get("code");
+                const error = urlParams.get("error");
 
-            // Process FIT file from URL
+                // Clean the URL
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+
+                if (error) {
+                    showStatus(`Authorization error: ${error}`, true);
+                    return;
+                }
+
+                if (code) {
+                    showStatus(
+                        "Authentication successful, getting access token...",
+                    );
+
+                    const token = await exchangeCodeForToken(code);
+                    if (token) {
+                        document
+                            .getElementById("login-section")
+                            .classList.add("hidden");
+                        await fetchActivities();
+                    }
+                } else {
+                    // Check if already authenticated
+                    const token = await getAccessToken();
+                    if (token) {
+                        document
+                            .getElementById("login-section")
+                            .classList.add("hidden");
+                        await fetchActivities();
+                    }
+                }
+            }
+
+            //////////////////////
+            // UI / helper code //
+            //////////////////////
+            const loginButton = document.getElementById("login-button");
+            const refreshButton = document.getElementById("refresh-button");
+            const activitiesSection =
+                document.getElementById("activities-section");
+            const activitiesContainer = document.getElementById(
+                "activities-container",
+            );
+            const statusElement = document.getElementById("status");
+
+            function showStatus(message, isError = false) {
+                statusElement.textContent = message;
+                statusElement.className = isError ? "error" : "success";
+                statusElement.classList.remove("hidden");
+            }
+
+            function hideStatus() {
+                statusElement.classList.add("hidden");
+            }
+
+            function getFormattedDate(timestamp) {
+                return new Date(timestamp * 1000).toLocaleString();
+            }
+
+            function formatDuration(seconds) {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const remainingSeconds = seconds % 60;
+
+                return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
+            }
+
+            function displayActivities(activities) {
+                activitiesContainer.innerHTML = "";
+
+                if (!activities || activities.length === 0) {
+                    activitiesContainer.innerHTML =
+                        "<p>No activities found.</p>";
+                    return;
+                }
+
+                activities.forEach((activity) => {
+                    const activityElement = document.createElement("div");
+                    activityElement.className = "activity";
+
+                    let activityType = activity.name || "Unknown";
+                    activityType =
+                        activityType.charAt(0).toUpperCase() +
+                        activityType.slice(1);
+
+                    const startDate = activity.starts
+                        ? getFormattedDate(activity.starts)
+                        : "Unknown date";
+                    const duration = activity.minutes
+                        ? formatDuration(activity.minutes)
+                        : "Unknown duration";
+                    const distance = activity.workout_summary.distance_accum
+                        ? (
+                              activity.workout_summary.distance_accum / 1000
+                          ).toFixed(2) + " km"
+                        : "Unknown distance";
+
+                    activityElement.innerHTML = `
+                    <h3>${activityType} - ${startDate}</h3>
+                    <p><strong>Duration:</strong> ${duration}</p>
+                    <p><strong>Distance:</strong> ${distance}</p>
+                    ${activity.workout_summary.calories_accum ? `<p><strong>Calories:</strong> ${activity.workout_summary.calories_accum} kcal</p>` : ""}
+                    ${activity.workout_summary.heart_rate_avg ? `<p><strong>Avg Heart Rate:</strong> ${activity.workout_summary.heart_rate_avg} bpm</p>` : ""}
+                    ${activity.workout_summary.speed_avg ? `<p><strong>Avg Speed:</strong> ${(activity.workout_summary.speed_avg * 3.6).toFixed(1)} km/h</p>` : ""}
+                    <div class="power-data" id="power-data-${activity.id}">Loading power data...</div>
+                  `;
+
+                    activitiesContainer.appendChild(activityElement);
+
+                    let fitFileUrl = activity.workout_summary.file.url;
+
+                    // Process power data from FIT file
+                    const powerDataElement = document.getElementById(
+                        `power-data-${activity.id}`,
+                    );
+                    processFitFile(fitFileUrl, powerDataElement);
+                });
+            }
+
             async function processFitFile(url, powerDataElement) {
                 if (!url) {
                     powerDataElement.innerHTML = "No FIT file URL available";
@@ -361,7 +404,6 @@
                 }
 
                 try {
-                    // If not cached, download and process
                     powerDataElement.innerHTML =
                         '<span class="loading">Loading power data...</span>';
 
@@ -417,23 +459,30 @@
 
                     showStatus("Fetching your activities...");
 
-                    const response = await fetch(`${apiEndpoint}?per_page=5`, {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
+                    const response = await fetch(
+                        `${apiEndpoint}?per_page=${numActivities}`,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
                         },
-                    });
+                    );
 
-                    const response2 = await fetch(`https://api.wahooligan.com/v1/user`, {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
+                    const user_details = await fetch(
+                        `https://api.wahooligan.com/v1/user`,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
                         },
-                    });
-
+                    );
 
                     const responseText = await response.text();
-                    const response2Text = await response2.text();
-                    let data2 = JSON.parse(response2Text);
-                    console.log(data2);
+                    const userDetailsText = await user_details.text();
+                    let userData = JSON.parse(userDetailsText);
+
+                    document.getElementById("activities-title").innerHTML =
+                        `${userData.first} - Recent activities`;
 
                     if (!response.ok) {
                         throw new Error(
@@ -473,47 +522,6 @@
             // Event Listeners and Initialization
             loginButton.addEventListener("click", initiateAuth);
             refreshButton.addEventListener("click", fetchActivities);
-
-            // Handle OAuth redirect with auth code
-            async function handleAuthRedirect() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const code = urlParams.get("code");
-                const error = urlParams.get("error");
-
-                // Clean the URL
-                const cleanUrl = window.location.pathname;
-                window.history.replaceState({}, document.title, cleanUrl);
-
-                if (error) {
-                    showStatus(`Authorization error: ${error}`, true);
-                    return;
-                }
-
-                if (code) {
-                    showStatus(
-                        "Authentication successful, getting access token...",
-                    );
-
-                    const token = await exchangeCodeForToken(code);
-                    if (token) {
-                        document
-                            .getElementById("login-section")
-                            .classList.add("hidden");
-                        await fetchActivities();
-                    }
-                } else {
-                    // Check if already authenticated
-                    const token = await getAccessToken();
-                    if (token) {
-                        document
-                            .getElementById("login-section")
-                            .classList.add("hidden");
-                        await fetchActivities();
-                    }
-                }
-            }
-
-            // Initialize the application
             window.addEventListener("load", handleAuthRedirect);
         </script>
     </body>
