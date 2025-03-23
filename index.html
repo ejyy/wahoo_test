@@ -432,7 +432,7 @@
 
                     const responseText = await response.text();
                     const response2Text = await response2.text();
-                    data2 = JSON.parse(response2Text);
+                    let data2 = JSON.parse(response2Text);
                     console.log(data2);
 
                     if (!response.ok) {
