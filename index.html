@@ -423,7 +423,17 @@
                         },
                     });
 
+                    const response2 = await fetch(`https://api.wahooligan.com/v1/user`, {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    });
+
+
                     const responseText = await response.text();
+                    const response2Text = await response2.text();
+                    data2 = JSON.parse(response2Text);
+                    console.log(data2);
 
                     if (!response.ok) {
                         throw new Error(
